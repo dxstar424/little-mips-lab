@@ -3,6 +3,16 @@ learn/
 ppt/
 .claude/
 optimization.md
+.DS_Store
+# Vivado generated (safe to exclude)
+*.sim/
+*.cache/
+*.runs/
 *.jou
 *.log
-.DS_Store
+*.backup.jou
+*.backup.log
+webtalk*.log
+webtalk*.jou
+usage_statistics_webtalk.*
+*.strWe

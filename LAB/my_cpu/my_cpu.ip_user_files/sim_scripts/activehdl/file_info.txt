@@ -1,0 +1,12 @@
+xbip_utils_v3_0_vh_rfs.vhd,vhdl,xbip_utils_v3_0_10,../../ipstatic/hdl/xbip_utils_v3_0_vh_rfs.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+xbip_pipe_v3_0_vh_rfs.vhd,vhdl,xbip_pipe_v3_0_6,../../ipstatic/hdl/xbip_pipe_v3_0_vh_rfs.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+xbip_bram18k_v3_0_vh_rfs.vhd,vhdl,xbip_bram18k_v3_0_6,../../ipstatic/hdl/xbip_bram18k_v3_0_vh_rfs.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+mult_gen_v12_0_vh_rfs.vhd,vhdl,mult_gen_v12_0_16,../../ipstatic/hdl/mult_gen_v12_0_vh_rfs.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+mult_gen_0.vhd,vhdl,xil_defaultlib,../../../../little mips.srcs/sources_1/ip/mult_gen_0/sim/mult_gen_0.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+core.v,verilog,xil_defaultlib,D:/stduyu/Architecture/LAB1/little mips.srcs/sources_1/new/core.v,incdir="../../../../littlemips.srcs/sources_1/new"
+regfile.v,verilog,xil_defaultlib,D:/stduyu/Architecture/LAB1/little mips.srcs/sources_1/new/regfile.v,incdir="../../../../littlemips.srcs/sources_1/new"
+thinpad_top.v,verilog,xil_defaultlib,D:/stduyu/Architecture/LAB1/little mips.srcs/sources_1/new/thinpad_top.v,incdir="../../../../littlemips.srcs/sources_1/new"
+Decode.vhd,vhdl,xil_defaultlib,D:/stduyu/Architecture/LAB1/little mips.srcs/sources_1/new/Decode.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+alu.vhd,vhdl,xil_defaultlib,D:/stduyu/Architecture/LAB1/little mips.srcs/sources_1/new/alu.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+forward.vhd,vhdl,xil_defaultlib,D:/stduyu/Architecture/LAB1/little mips.srcs/sources_1/new/forward.vhd,incdir="../../../../littlemips.srcs/sources_1/new"
+glbl.v,Verilog,xil_defaultlib,glbl.v
