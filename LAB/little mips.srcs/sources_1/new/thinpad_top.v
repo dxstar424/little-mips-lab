@@ -130,7 +130,7 @@ module thinpad_top(
         .inst_req(icache_inst_req),
         .inst_addr(icache_inst_addr),
         .inst_data(icache_rdata),
-        .data_req(data_req),
+        .data_req(data_req & ~icache_stall),  // block data_req during cache fill to prevent deadlock
         .data_we(data_we),
         .data_be(be),
         .data_addr(dmem_addr),
