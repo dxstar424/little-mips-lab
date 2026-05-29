@@ -92,6 +92,7 @@ module iCache #(
     reg [25:0] miss_tag;
     reg [1:0]  miss_index;
     reg        is_our_txn;
+    reg [1:0]  stall_cnt;     // count mem_stall cycles for address-advance timing
     integer    rst_w, rst_s;
 
     // mem_stall edge detection
@@ -114,6 +115,7 @@ module iCache #(
             miss_tag    <= 26'd0;
             miss_index  <= 2'd0;
             is_our_txn  <= 1'b0;
+            stall_cnt   <= 2'd0;
 
             for (rst_w = 0; rst_w < WAYS; rst_w = rst_w + 1) begin
                 for (rst_s = 0; rst_s < SETS; rst_s = rst_s + 1) begin
@@ -147,15 +149,23 @@ module iCache #(
 
                 S_MISS_FILL: begin
                     // Detect ownership of each mem_stall burst.
-                    // When mem_stall rises (MemCtrl starts a transaction),
-                    // check data_req: if 1, MemCtrl serves data, not us.
                     if (stall_rise) begin
                         is_our_txn <= !data_req;
+                        if (!data_req) stall_cnt <= 2'd0;
+                    end else if (mem_stall && is_our_txn) begin
+                        stall_cnt <= stall_cnt + 2'd1;
+                    end
+
+                    // Advance address one cycle before stall_fall.
+                    // MemCtrl: READ(1) + WAIT(SRAM=2) = 3 stall cycles.
+                    // stall_cnt=0 at stall_rise, reaches 1 at the WAIT(cn=1)
+                    // cycle. Advancing here means the new address is stable
+                    // before MemCtrl samples it on the next IDLE→READ.
+                    if (mem_stall && is_our_txn && stall_cnt == 2'd1) begin
+                        mem_inst_addr <= block_base + ((fill_cnt + 2'd1) << 2);
                     end
 
                     // mem_stall falling edge: our transaction completed, data valid.
-                    // Latch the word and advance address for the next request
-                    // so MemCtrl picks up the new offset on the next stall_rise.
                     if (stall_fall && is_our_txn) begin
                         data[repl_way][miss_index][fill_cnt] <= mem_inst_data;
 
@@ -166,10 +176,7 @@ module iCache #(
                             state       <= S_IDLE;
                             mem_inst_req <= 1'b0;
                         end else begin
-                            // Advance to next word offset before MemCtrl
-                            // samples mem_inst_addr on the next transaction
                             fill_cnt <= fill_cnt + 2'd1;
-                            mem_inst_addr <= block_base + ((fill_cnt + 2'd1) << 2);
                         end
                     end
                 end
