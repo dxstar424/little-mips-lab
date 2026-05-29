@@ -64,7 +64,7 @@ module MemCtrl(
     wire [3:0] req_be_n = req_data_sel ? data_be : 4'b0000;
     wire [31:0] req_wdata = req_data_sel ? data_wdata : 32'b0;
 
-    wire req_use_ext = req_addr[22];                // 0x8040_0000 window maps to ExtRAM
+    wire req_use_ext = req_addr[23];                // 0x8080_0000 window maps to ExtRAM
     wire req_is_uart = (req_addr[31:4] == 28'hbfd003f); // UART window (higher wait cycles)
 
     wire [31:0] sram_rdata = txn_use_ext ? ext_ram_data : base_ram_data;
