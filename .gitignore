@@ -1,0 +1,8 @@
+docs/
+learn/
+ppt/
+.claude/
+optimization.md
+*.jou
+*.log
+.DS_Store
