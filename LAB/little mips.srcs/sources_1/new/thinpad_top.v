@@ -72,7 +72,7 @@ module thinpad_top(
     wire [31:0]dmem_rdata;
     wire mem_stall;
     // iCache signals (added in Lab3)
-    wire [31:0] icache_inst;
+    wire [31:0] icache_rdata;
     wire        icache_stall;
     wire        icache_inst_req;
     wire [31:0] icache_inst_addr;
@@ -116,7 +116,7 @@ module thinpad_top(
         .core_stall(icache_stall),
         .mem_inst_req(icache_inst_req),
         .mem_inst_addr(icache_inst_addr),
-        .mem_inst_data(icache_inst),
+        .mem_inst_data(icache_rdata),
         .mem_stall(mem_stall),
         .data_req(data_req)
     );
@@ -129,7 +129,7 @@ module thinpad_top(
         .rst(rst),
         .inst_req(icache_inst_req),
         .inst_addr(icache_inst_addr),
-        .inst_data(icache_inst),
+        .inst_data(icache_rdata),
         .data_req(data_req),
         .data_we(data_we),
         .data_be(be),

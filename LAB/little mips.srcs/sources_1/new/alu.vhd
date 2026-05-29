@@ -181,9 +181,11 @@ begin
     process(br_type, a, b, rs_v, pc, imm)
         variable is_jump_v : std_logic;
         variable target_v  : std_logic_vector(31 downto 0);
+        variable pc_plus_4 : std_logic_vector(31 downto 0);
     begin
         is_jump_v := '0';
         target_v  := (others => '0');
+        pc_plus_4 := std_logic_vector(unsigned(pc) + 4);
 
         case br_type is
             when "0000" => -- BEQ
@@ -212,11 +214,11 @@ begin
 
             when "0110" => -- J
                 is_jump_v := '1';
-                target_v  := std_logic_vector(unsigned(pc) + 4)(31 downto 28) & imm(25 downto 0) & "00";
+                target_v  := pc_plus_4(31 downto 28) & imm(25 downto 0) & "00";
 
             when "0111" => -- JAL
                 is_jump_v := '1';
-                target_v  := std_logic_vector(unsigned(pc) + 4)(31 downto 28) & imm(25 downto 0) & "00";
+                target_v  := pc_plus_4(31 downto 28) & imm(25 downto 0) & "00";
 
             when "1000" => -- JR
                 is_jump_v := '1';

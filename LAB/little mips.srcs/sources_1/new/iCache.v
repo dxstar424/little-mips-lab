@@ -92,6 +92,7 @@ module iCache #(
     reg [25:0] miss_tag;
     reg [1:0]  miss_index;
     reg        is_our_txn;
+    integer    rst_w, rst_s;
 
     // mem_stall edge detection
     reg mem_stall_d;
@@ -114,7 +115,6 @@ module iCache #(
             miss_index  <= 2'd0;
             is_our_txn  <= 1'b0;
 
-            integer rst_w, rst_s;
             for (rst_w = 0; rst_w < WAYS; rst_w = rst_w + 1) begin
                 for (rst_s = 0; rst_s < SETS; rst_s = rst_s + 1) begin
                     valid[rst_w][rst_s] <= 1'b0;

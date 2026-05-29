@@ -37,13 +37,13 @@ thinpad_top (clk_50M, reset_btn -> clk/rst)
 
 | Stage | Pipeline Register | Key Modules |
 |-------|-------------------|-------------|
-| IF | `pc`, `ifid_*` (PC, inst, valid) | `iCache` (4-way set-associative, between Core and MemCtrl) |
-| ID | `idex_*` | `Decode`, `regfile`, `forward` |
+| IF | `pc`, `ifid_*` (PC, inst, valid, pred_taken, pred_target) | `iCache`, `branch_predictor` (BHT lookup) |
+| ID | `idex_*` (includes pred_taken, pred_target) | `Decode`, `regfile`, `forward` |
 | EX | `exmem_*` | `ALU` (VHDL, includes Xilinx `mult_gen_0` IP for signed MUL) |
 | MEM | — (outputs driven directly from `exmem_*`) | `MemCtrl` (state machine: IDLE->READ/WRITE->WAIT) |
 | WB | `wb_*` (rd, reg_wdata, reg_w) | Writeback to `regfile` |
 
-Each pipeline register has a `*_v` valid bit (`ifid_v`, `idex_v`, `exmem_v`) that tracks whether the stage contains a real instruction. Bubbles (v=0) propagate through the pipeline and are squashed at side-effect points (register writes are gated by `exmem_reg_w & exmem_v`, memory requests by `exmem_dmem_w & exmem_v`). Valid bits are cleared on reset, on taken branch flush (`fit`), and when a stall inserts a bubble.
+Each pipeline register has a `*_v` valid bit (`ifid_v`, `idex_v`, `exmem_v`) that tracks whether the stage contains a real instruction. Bubbles (v=0) propagate through the pipeline and are squashed at side-effect points (register writes are gated by `exmem_reg_w & exmem_v`, memory requests by `exmem_dmem_w & exmem_v`). Valid bits are cleared on reset, on branch mispredict flush (`bp_mispredict`), on taken branch flush when unpredicted (`fit & ~idex_pred_taken`), and when a stall inserts a bubble.
 
 ### Stall & Freeze Semantics
 
@@ -54,19 +54,37 @@ Pipeline-specific stalls:
 - **`ex_stall`** = `ex_alu_stall | mem_stall` — prevents EX->MEM from advancing. When asserted, `idex_v` is cleared by the next non-stall cycle.
 - **`id_data_stall`** (load-use hazard): asserted by `forward.vhd` when an EX-stage LW targets ID-stage rs/rt.
 
-### Branch Handling (Delay-Slot Architecture)
+### Branch Prediction (Lab4: Dynamic BHT)
 
-MIPS uses a single delay-slot branch: the instruction immediately after a branch **always executes**. The CPU uses two mechanisms:
+A 16-entry direct-mapped Branch History Table (BHT) with 2-bit saturating counters predicts branch direction and target at the IF stage. Prediction travels through the pipeline alongside the instruction.
 
-1. **`fit`** (fetch invalidate taken): On a taken branch detected in EX (`jump & idex_v`), the instruction that was fetched into IF/ID (the instruction after the delay slot) is flushed by clearing `ifid_v`.
+**BHT structure** (`branch_predictor.v`):
+- 16 entries, direct-mapped (index = `PC[5:2]`, tag = `PC[31:6]`)
+- 2-bit saturating counter per entry: 00=StrongNT, 01=WeakNT, 10=WeakT, 11=StrongT
+- Predicted taken when counter MSB is 1 (WeakT or StrongT)
+- Stores 32-bit branch target per entry
+- On tag mismatch (different branch at same index): if existing counter is 00 (StrongNT), replace; otherwise decrement the existing counter (decay)
 
-2. **`delayed_branch` register**: On a taken branch, the next PC is not the branch target — it's `fit_pc` (the instruction after the branch, i.e., the delay slot). The actual branch target is saved in `delayed_target` and used as PC on the **following** cycle.
+**Prediction pipeline**: Prediction flows through `ifid_pred_taken/target` -> `idex_pred_taken/target`. At EX stage, prediction is compared against actual branch resolution.
 
-PC logic priority (in `core.v` always block):
+**PC logic priority** (in `core.v` always block):
 1. Reset -> `0x8000_0000`
-2. `fit & ~mem_stall` -> `fit_pc` (= `idex_pc + 4`, the delay slot)
-3. `delayed_branch` -> `delayed_target` (the actual branch target)
-4. Default -> `pc + 4`
+2. `bp_mispredict & ~mem_stall` -> actual taken target (`fit_target`) or sequential past delay slot (`idex_pc + 8`)
+3. `fit & ~mem_stall & ~idex_pred_taken` -> actual branch target (taken branch that wasn't predicted)
+4. `pred_delayed_branch` -> `pred_delayed_target` (predicted target, after delay slot executed)
+5. Default: if BHT predicts taken, set `pred_delayed_branch` flag and fetch `pc + 4` (the delay slot) next
+
+**Mispredict detection** (`core.v:394-396`):
+```verilog
+bp_mispredict = idex_is_branch & idex_v &
+    ((idex_pred_taken != ex_actual_taken) |
+     (idex_pred_taken & ex_actual_taken & (idex_pred_target != fit_target)));
+```
+A branch mispredicts when: direction is wrong, OR predicted taken but target address is wrong (JR/JALR with changing register).
+
+**Mispredict recovery**: On `bp_mispredict`, IF/ID is flushed (`ifid_v=0`), ID stage is NOT cleared (the delay slot must execute), and PC redirects to the correct path. The BHT is updated in the same cycle with actual outcome.
+
+**BHT update policy**: Updated every cycle when a branch is in EX (`idex_is_branch & idex_v & ~mem_stall`). Hit or empty entry: increment/decrement saturating counter. Tag mismatch: only replace if existing counter is 00 (StrongNT), otherwise decay the existing entry.
 
 ### Forwarding (`forward.vhd`)
 
@@ -132,7 +150,7 @@ All immediates are sign-extended except LUI (upper half), ANDI/ORI/XORI (zero-ex
 ### Mixed-Language Notes
 
 - **VHDL modules**: `Decode.vhd`, `alu.vhd`, `forward.vhd`
-- **Verilog modules**: `core.v`, `regfile.v`, `iCache.v`, `MemCtrl.v`, `thinpad_top.v` / `dpad_top.v`
+- **Verilog modules**: `core.v`, `regfile.v`, `iCache.v`, `branch_predictor.v`, `MemCtrl.v`, `thinpad_top.v` / `dpad_top.v`
 - `headder.vh` is Verilog-only (` `define` macros). VHDL modules hardcode the same constants (e.g., `alu_type = "1100"` for MUL in alu.vhd, `br_type` cases use 4-bit literals).
 
 ### Global Defines (`headder.vh`)
@@ -145,6 +163,8 @@ Operand select: `A_RS=0, A_PC=1, A_SA=2`, `B_RT=0, B_SI=1, B_8=2`
 
 Cache params: `ICACHE_SETS=4, ICACHE_WAYS=4, ICACHE_BLOCK_WORDS=4`
 
+BHT params: `BHT_ENTRIES=16, BHT_INDEX_BITS=4` (PC[5:2] index)
+
 ### Coding Conventions
 
 - **`~|` is an equality comparator**: `core.v` uses `~|(x ^ y)` to test `x == y` as a 1-bit result. `~|` is NOR reduction: XOR the bits, then NOR them all — returns 1 only when every bit matches. Equivalent to `(x == y)` but used throughout the project as a consistent style choice.
@@ -152,7 +172,8 @@ Cache params: `ICACHE_SETS=4, ICACHE_WAYS=4, ICACHE_BLOCK_WORDS=4`
 
 ### Known Quirks
 
-- **`exmem_v` dead code trap** (`core.v:335-343`): The `exmem_v` always block has two parallel `if` statements (not `if/else if`). The `if(fit) exmem_v <= 0` on line 335 is always overridden by the `if(ex_stall)...else` on line 338. This happens to be correct (it lets delay-slot instructions flow into MEM), but if someone adds `else` between these two blocks, the delay slot will break. Do NOT convert to `if/else if` chain without understanding the override semantics.
+- **Mispredict flush leaves ID stage alive** (`core.v:287-291`): When `bp_mispredict` fires, `idex_v` is NOT cleared — only the prediction metadata is zeroed. This is correct: the delay-slot instruction is in ID and must execute. IF/ID is flushed (`ifid_v=0`) to discard the wrongly-fetched target instruction.
+- **`exmem_v` branch kill** (`core.v:421-422`): The condition `if(fit && ~idex_reg_w)` kills a taken branch in MEM only if it does NOT write a register. JAL/JALR (`idex_reg_w=1`) must reach WB to write the return address; pure branches (BEQ, J, JR, etc.) are squashed in MEM to avoid unnecessary memory stalls.
 
 ## Lab Progression
 
@@ -161,18 +182,16 @@ Cache params: `ICACHE_SETS=4, ICACHE_WAYS=4, ICACHE_BLOCK_WORDS=4`
 | Lab1 | Decode, ALU, Forward (basic 5-stage pipeline) | Done |
 | Lab2 | MemCtrl with multi-cycle SRAM access + write buffer | Done |
 | Lab3 | Instruction Cache (iCache) | Done |
-| Lab4 | Branch prediction | Current |
+| Lab4 | Branch prediction (16-entry BHT with 2-bit saturating counter) | Done |
 
 The `learn/` directory contains the code at Lab3 completion state. Each lab builds incrementally on the previous one.
 
 ## Known Bugs & Optimization Points
 
-See `LAB/little mips.srcs/sources_1/new/optimization.md` for full details. Summary of critical items:
-
 ### Fixed
 - **iCache block fill second word corruption** (Fix 1): Address advance logic was one cycle late, causing word 1 of every cache block to be a duplicate of word 0.
 - **MUL re-trigger during mem_stall** (Fix 2): ALU MUL state machine would restart when mem_stall released, doubling multiply latency.
-- **Branch delay slot re-fetch** (Fix 3): `fit` signal incorrectly flushed the delay slot instruction from `idex`, wasting 2 cycles per taken branch.
+- **Branch delay slot re-fetch** (Fix 3): `fit` signal incorrectly flushed the delay slot instruction from `idex`, wasting 2 cycles per taken branch. Fully obsoleted by Lab4 predictor (the `delayed_branch` register no longer exists).
 
 ### Unfixed (low priority)
 - **MemCtrl.v**: Write buffer not implemented (Lab2 spec requirement); UART returns constant 0.
