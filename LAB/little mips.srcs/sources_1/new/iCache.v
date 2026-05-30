@@ -133,6 +133,7 @@ module iCache #(
                 S_IDLE: begin
                     mem_inst_req <= 1'b0;
                     is_our_txn   <= 1'b0;
+                    stall_cnt    <= 2'd0;
 
                     if (miss_detected) begin
                         state       <= S_MISS_FILL;
