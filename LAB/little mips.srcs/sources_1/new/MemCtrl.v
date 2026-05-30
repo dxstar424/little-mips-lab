@@ -78,9 +78,9 @@ module MemCtrl(
     // - Next cycle, if another request exists, state machine re-enters READ/WRITE and asserts stall
     assign mem_stall = (state != S_IDLE);
 
-    // RAM data bus tri-state control (driven only during write transactions)
-    wire drive_base = (state == S_WRITE) && (~txn_use_ext) && (~txn_is_uart);
-    wire drive_ext  = (state == S_WRITE) && ( txn_use_ext) && (~txn_is_uart);
+    // RAM data bus tri-state control: drive during S_WRITE+S_WAIT for writes
+    wire drive_base = txn_is_write && cs_base;
+    wire drive_ext  = txn_is_write && cs_ext;
     assign base_ram_data = drive_base ? txn_wdata : 32'bz;
     assign ext_ram_data  = drive_ext  ? txn_wdata : 32'bz;
 
@@ -102,8 +102,10 @@ module MemCtrl(
     // Hold OE low during reads (READ+WAIT), prevent bus from going Hi-Z between wait cycles
     assign base_ram_oe_n = ~((~txn_is_write) && cs_base);
     assign ext_ram_oe_n  = ~((~txn_is_write) && cs_ext);
-    assign base_ram_we_n = ~((state == S_WRITE) && cs_base);
-    assign ext_ram_we_n  = ~((state == S_WRITE) && cs_ext);
+    // WE_n must stay low through S_WRITE+S_WAIT so that it is still
+    // low when CE_n rises (SRAM model writes on posedge CE_n with WE_n=0).
+    assign base_ram_we_n = ~(txn_is_write && cs_base);
+    assign ext_ram_we_n  = ~(txn_is_write && cs_ext);
 
     always @(posedge clk) begin
         if (rst) begin
