@@ -106,13 +106,14 @@ A purely combinational block that does three things:
 
 ### Memory Map (from MemCtrl)
 
-- **BaseRAM**: `req_addr[22] == 0` — default, 20-bit address bus -> `addr[21:2]`
-- **ExtRAM**: `req_addr[22] == 1` — window at `0x8040_0000`
-- **UART**: `req_addr[31:4] == 28'hbfd003f` — serial port, 8 wait cycles
+- **BaseRAM**: `req_addr[22] == 0` — covers `0x8000_0000-0x803FFFFF`, 20-bit address `addr[21:2]`
+- **ExtRAM**: `req_addr[22] == 1` — covers `0x8040_0000-0x807FFFFF`, separate SRAM chip with own 20-bit address space. **Address must subtract `0x100000`**: `ext_ram_addr = txn_addr[21:2] - 21'h100000` to fit within 20 bits.
+- **UART**: `req_addr[31:4] == 28'hbfd003f` — serial port, 8 wait cycles, returns 0 (placeholder)
 - **Instruction fetch starts at**: `0x8000_0000` (reset PC in `core.v:103`)
-- **MemCtrl arbitration**: Data access (`data_req`) has priority over instruction fetch when both request simultaneously (`pick_data = data_req` in S_IDLE).
-- **MemCtrl timing**: SRAM access = 3 cycles (READ/WRITE 1 cycle + WAIT 2 cycles). `mem_stall = (state != IDLE)`.
-- Write buffer required by Lab2 spec but **not yet implemented** — SW still blocks CPU for 3 cycles.
+- **MemCtrl arbitration**: Data access (`data_req`) has priority over instruction fetch (`pick_data = data_req`).
+- **MemCtrl timing**: SRAM = 3 cycles (READ/WRITE 1 + WAIT 2). `mem_stall = (state != IDLE)`.
+- **Write buffer**: Required by Lab2 spec but not yet implemented — SW blocks CPU 3 cycles.
+- **SRAM write timing constraint**: WE_n must stay low through S_WRITE+S_WAIT (not just S_WRITE). The SRAM behavioral model writes on `posedge CE_n` when `WE_n==0`.
 
 ### iCache (`iCache.v`)
 
@@ -121,7 +122,9 @@ A purely combinational block that does three things:
 - **Address mapping**: tag = `pc[31:6]`, index = `pc[5:4]`, word = `pc[3:2]`
 - **Replacement**: Round-robin counter per set (`repl_ctr`), incremented on miss allocation.
 - **Hit detection**: Combinational — 4-way parallel tag compare against valid bits. On miss, `core_stall` asserts combinatorially so Core never latches invalid `core_inst` (which is forced to 0 on miss).
-- **Miss fill** (`S_MISS_FILL` state): Fills all 4 words of the block in sequence. Tracks ownership of `mem_stall` transactions by detecting `stall_rise` and checking `data_req` — if `data_req` is low when mem_stall rises, the transaction belongs to iCache. Each fill cycle: wait for mem_stall fall -> latch data -> advance `fill_cnt` -> when `fill_cnt == 3`, set valid+tag and return to IDLE.
+- **Miss fill** (`S_MISS_FILL` state): Fills all 4 words sequentially through MemCtrl. Uses `stall_rise` for transaction ownership detection (`is_our_txn = !data_req`) and `stall_fall` for data latching. Address advances one cycle BEFORE stall_fall at `stall_cnt==1` to give MemCtrl time to sample the new address. `stall_cnt` tracks mem_stall cycles for timing. Must reset `stall_cnt` to 0 in S_IDLE.
+
+**Critical timing note**: The SRAM model (`sram_model.v`) writes data on `posedge CE_n` when `WE_n==0`. MemCtrl must keep WE_n low through the entire transaction (S_WRITE+S_WAIT) so it's still low when CE_n rises. Same constraint applies: data bus must be driven during S_WRITE+S_WAIT for writes.
 
 ### Multiplier (ALU `mult_gen_0` IP)
 
@@ -188,10 +191,14 @@ The `learn/` directory contains the code at Lab3 completion state. Each lab buil
 
 ## Known Bugs & Optimization Points
 
-### Fixed
-- **iCache block fill second word corruption** (Fix 1): Address advance logic was one cycle late, causing word 1 of every cache block to be a duplicate of word 0.
-- **MUL re-trigger during mem_stall** (Fix 2): ALU MUL state machine would restart when mem_stall released, doubling multiply latency.
-- **Branch delay slot re-fetch** (Fix 3): `fit` signal incorrectly flushed the delay slot instruction from `idex`, wasting 2 cycles per taken branch. Fully obsoleted by Lab4 predictor (the `delayed_branch` register no longer exists).
+### Fixed (critical — would corrupt all simulation results)
+- **SRAM write timing** (MemCtrl.v): WE_n must stay low through S_WRITE+S_WAIT until CE_n rises. The SRAM behavioral model (`sram_model.v`) writes on `posedge CE_n` when `WE_n==0`. Formerly WE_n rose one cycle before CE_n, so writes silently failed. Fix: `assign base_ram_we_n = ~(txn_is_write && cs_base)` and extend data bus drive.
+- **ExtRAM address overflow** (MemCtrl.v): `txn_addr[21:2]` for `0x80400000` = `0x100000` overflows 20-bit ExtRAM address bus. Must subtract `21'h100000` to map to ExtRAM indices 0x00000-0xFFFFF.
+- **iCache address advance timing** (iCache.v): Advancing address at `stall_fall` is one cycle too late — MemCtrl samples the old address on the same posedge. Must advance at `stall_cnt==1` (one cycle before stall_fall). Requires a `stall_cnt` register reset in S_IDLE.
+- **iCache fill deadlock** (thinpad_top.v): During cache fill, Core is frozen with a LW/SW in MEM stage → `data_req=1` continuously → MemCtrl keeps re-servicing data → iCache starves. Fix: `masked_data_req = data_req & ~icache_stall` fed to both iCache and MemCtrl during fill.
+- **iCache block fill second word corruption** (original): Address advance was one cycle late, causing word 1 of every cache block to duplicate word 0.
+- **MUL re-trigger during mem_stall**: ALU state machine now frozen by `mem_stall` via added port.
+- **Branch delay slot re-fetch**: `fit` no longer flushes `idex_v`; `delayed_branch` mechanism removed; mispredict recovery uses `bp_mispredict` with `pred_delayed_branch`.
 
 ### Unfixed (low priority)
 - **MemCtrl.v**: Write buffer not implemented (Lab2 spec requirement); UART returns constant 0.
