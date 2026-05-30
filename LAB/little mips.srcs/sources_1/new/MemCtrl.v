@@ -78,11 +78,21 @@ module MemCtrl(
     // - Next cycle, if another request exists, state machine re-enters READ/WRITE and asserts stall
     assign mem_stall = (state != S_IDLE);
 
-    // RAM data bus tri-state control: drive during S_WRITE+S_WAIT for writes
-    wire drive_base = txn_is_write && cs_base;
-    wire drive_ext  = txn_is_write && cs_ext;
-    assign base_ram_data = drive_base ? txn_wdata : 32'bz;
-    assign ext_ram_data  = drive_ext  ? txn_wdata : 32'bz;
+    // Data bus: drive during write + 1 extra cycle so DataIO stays valid
+    // through the posedge CE_n event (prevents write_data1_time reset race).
+    reg  drive_base_r;
+    reg  drive_ext_r;
+    always @(posedge clk) begin
+        if (rst) begin
+            drive_base_r <= 1'b0;
+            drive_ext_r  <= 1'b0;
+        end else begin
+            drive_base_r <= txn_is_write && cs_base;
+            drive_ext_r  <= txn_is_write && cs_ext;
+        end
+    end
+    assign base_ram_data = (drive_base_r || (txn_is_write && cs_base)) ? txn_wdata : 32'bz;
+    assign ext_ram_data  = (drive_ext_r  || (txn_is_write && cs_ext))  ? txn_wdata : 32'bz;
 
     // RAM control signals (active low)
     wire cs_base = (~txn_use_ext) && (~txn_is_uart) && (state != S_IDLE);
