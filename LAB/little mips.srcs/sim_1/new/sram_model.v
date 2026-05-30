@@ -21,7 +21,7 @@
 `default_nettype wire
 
 
-module sram_model1(Address, DataIO, OE_n, CE_n,WE_n, LB_n, UB_n);
+module sram_model(Address, DataIO, OE_n, CE_n,WE_n, LB_n, UB_n);
 
 `define tsim  20000
 

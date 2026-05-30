@@ -1,0 +1,88 @@
+0x24080005    # addiu  $t0, $zero, 5
+0x24090003    # addiu  $t1, $zero, 3
+0x240A000A    # addiu  $t2, $zero, 10
+0x240B0007    # addiu  $t3, $zero, 7
+0x01096021    # addu   $t4, $t0, $t1
+0x018A6821    # addu   $t5, $t4, $t2
+0x01AB7021    # addu   $t6, $t5, $t3
+0x01C87823    # subu   $t7, $t6, $t0
+0x01EEC02A    # slt    $t8, $t7, $t6
+0x01CF8024    # and    $s0, $t6, $t7
+0x31D100FF    # andi   $s1, $t6, 0x00FF
+0x01CF9025    # or     $s2, $t6, $t7
+0x35D300F0    # ori    $s3, $t6, 0x00F0
+0x01CFA026    # xor    $s4, $t6, $t7
+0x39D500FF    # xori   $s5, $t6, 0x00FF
+0x3C161234    # lui    $s6, 0x1234
+0x0008B880    # sll    $s7, $t0, 2
+0x0017B842    # srl    $s7, $s7, 1
+0x0017B883    # sra    $s7, $s7, 2
+0x24190003    # addiu  $t9, $zero, 3
+0x0328B804    # sllv   $s7, $t0, $t9
+0x0337B806    # srlv   $s7, $s7, $t9
+0x0337B807    # srav   $s7, $s7, $t9
+0x3C048040    # lui    $a0, 0x8040
+0x24051234    # addiu  $a1, $zero, 4660
+0x24065678    # addiu  $a2, $zero, 22136
+0xAC850000    # sw     $a1, 0($a0)
+0xA0860004    # sb     $a2, 4($a0)
+0x8C820000    # lw     $v0, 0($a0)
+0x00481021    # addu   $v0, $v0, $t0
+0x80830004    # lb     $v1, 4($a0)
+0x00033A00    # sll    $a3, $v1, 8
+0x24070002    # addiu  $a3, $zero, 2
+0x24190003    # addiu  $t9, $zero, 3
+0x70F91002    # mul    $v0, $a3, $t9
+0x70471002    # mul    $v0, $v0, $a3
+0x70591002    # mul    $v0, $v0, $t9
+0x70C21802    # mul    $v1, $a2, $v0
+0x70411002    # mul    $v0, $v0, $at
+0x24190000    # addiu  $t9, $zero, 0
+0x27390001    # addiu  $t9, $t9, 1
+0x13270003    # beq    $t9, $a3, 3
+0x277B0001    # addiu  $k1, $k1, 1
+0x1727FFFC    # bne    $t9, $a3, -4
+0x277B0001    # addiu  $k1, $k1, 1
+0x1F200003    # bgtz   $t9, 3
+0x277B0001    # addiu  $k1, $k1, 1
+0x1B20FFFD    # blez   $t9, -3
+0x277B0001    # addiu  $k1, $k1, 1
+0x0400FFFB    # .word  0x0400FFFB  # REGIMM rt=$zero
+0x277B0001    # addiu  $k1, $k1, 1
+0x07210001    # .word  0x07210001  # REGIMM rt=$at
+0x277B0001    # addiu  $k1, $k1, 1
+0x0C000039    # jal    0x0000039
+0x277B0001    # addiu  $k1, $k1, 1
+0x0800003B    # j      0x000003B
+0x277B0001    # addiu  $k1, $k1, 1
+0x03E00008    # jr     $ra
+0x277B0001    # addiu  $k1, $k1, 1
+0x3C1A8000    # lui    $k0, 0x8000
+0x375A00FC    # ori    $k0, $k0, 0x00FC
+0x0340D809    # jalr   $k1, $k0
+0x277B0001    # addiu  $k1, $k1, 1
+0x24080001    # addiu  $t0, $zero, 1
+0x24090002    # addiu  $t1, $zero, 2
+0x01095021    # addu   $t2, $t0, $t1
+0x012A5821    # addu   $t3, $t1, $t2
+0x014B6021    # addu   $t4, $t2, $t3
+0x016C6821    # addu   $t5, $t3, $t4
+0x018D7021    # addu   $t6, $t4, $t5
+0x01AE7821    # addu   $t7, $t5, $t6
+0xAC8F0008    # sw     $t7, 8($a0)
+0x8C980008    # lw     $t8, 8($a0)
+0x030FC021    # addu   $t8, $t8, $t7
+0xAC98000C    # sw     $t8, 12($a0)
+0x24100003    # addiu  $s0, $zero, 3
+0x2610FFFF    # addiu  $s0, $s0, -1
+0x12000004    # beq    $s0, $zero, 4
+0x277B0001    # addiu  $k1, $k1, 1
+0x01084021    # addu   $t0, $t0, $t0
+0x0800004C    # j      0x000004C
+0x277B0001    # addiu  $k1, $k1, 1
+0xAC8E0010    # sw     $t6, 16($a0)
+0xAC820014    # sw     $v0, 20($a0)
+0xAC830018    # sw     $v1, 24($a0)
+0x08000055    # j      0x0000055
+0x00000000    # nop
+0x00000000    # nop

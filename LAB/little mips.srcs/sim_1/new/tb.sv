@@ -50,6 +50,19 @@ parameter FLASH_INIT_FILE = "/tmp/kernel.elf";    //Flash��ʼ���ļ��
 
 assign rxd = 1'b1; //idle state
 
+// ---- Debug: monitor ExtRAM writes ----
+always @(negedge dut.ext_ram_we_n) begin
+    if (dut.ext_ram_ce_n == 1'b0) begin
+        $display("[%0t] ExtRAM WR: addr=0x%h data=0x%h be=%b",
+                 $time, dut.ext_ram_addr, dut.ext_ram_data,
+                 dut.ext_ram_be_n);
+        #30; // wait for SRAM write to complete
+        $display("[%0t]   ext1.mem_array0[%d]=%h, mem_array1[%d]=%h",
+                 $time, dut.ext_ram_addr, ext1.mem_array0[dut.ext_ram_addr],
+                 dut.ext_ram_addr, ext1.mem_array1[dut.ext_ram_addr]);
+    end
+end
+
 initial begin 
     //����������Զ�������������У����磺
     dip_sw = 32'h2;

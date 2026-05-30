@@ -418,10 +418,11 @@ module Core(
             exmem_v <= exmem_v;
         end
         else if(~mem_stall)begin
-            if(fit && ~idex_reg_w)begin
-                // Kill pure branch (BEQ,BNE,J,JR,BGEZ,BGTZ,BLEZ,BLTZ)
-                // in MEM -- no register or memory side effects.
-                // JAL/JALR (idex_reg_w=1) must reach WB to write return address.
+            if(fit && ~idex_reg_w && ~exmem_reg_w && ~exmem_dmem_w && ~exmem_dmem_r)begin
+                // Kill pure branch in MEM only when it has no side effects
+                // (no register write, no memory access).
+                // Must NOT kill LW (exmem_reg_w=1) or SW (exmem_dmem_w=1)
+                // that are still waiting for memory.
                 exmem_v <= 1'b0;
             end
             else if(ex_stall)begin
