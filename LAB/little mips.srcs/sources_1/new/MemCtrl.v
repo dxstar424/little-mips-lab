@@ -110,8 +110,13 @@ module MemCtrl(
     reg base_ram_we_n;
     reg ext_ram_we_n;
     always @(posedge clk) begin
-        base_ram_we_n <= ~(txn_is_write && cs_base);
-        ext_ram_we_n  <= ~(txn_is_write && cs_ext);
+        if (rst) begin
+            base_ram_we_n <= 1'b1;
+            ext_ram_we_n  <= 1'b1;
+        end else begin
+            base_ram_we_n <= ~(txn_is_write && cs_base);
+            ext_ram_we_n  <= ~(txn_is_write && cs_ext);
+        end
     end
 
     always @(posedge clk) begin
