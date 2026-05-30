@@ -25,14 +25,14 @@ module MemCtrl(
     output wire [3:0]  base_ram_be_n,
     output wire        base_ram_ce_n,
     output wire        base_ram_oe_n,
-    output wire        base_ram_we_n,
+    output reg         base_ram_we_n,
 
     inout  wire [31:0] ext_ram_data,
     output wire [19:0] ext_ram_addr,
     output wire [3:0]  ext_ram_be_n,
     output wire        ext_ram_ce_n,
     output wire        ext_ram_oe_n,
-    output wire        ext_ram_we_n
+    output reg         ext_ram_we_n
 );
 
     // State machine: IDLE / READ / WRITE / WAIT
@@ -102,10 +102,17 @@ module MemCtrl(
     // Hold OE low during reads (READ+WAIT), prevent bus from going Hi-Z between wait cycles
     assign base_ram_oe_n = ~((~txn_is_write) && cs_base);
     assign ext_ram_oe_n  = ~((~txn_is_write) && cs_ext);
-    // WE_n must stay low through S_WRITE+S_WAIT so that it is still
-    // low when CE_n rises (SRAM model writes on posedge CE_n with WE_n=0).
-    assign base_ram_we_n = ~(txn_is_write && cs_base);
-    assign ext_ram_we_n  = ~(txn_is_write && cs_ext);
+
+    // WE_n must be registered (one cycle behind CE_n). The SRAM behavioral
+    // model writes on posedge CE_n when WE_n==0. Both change on the same
+    // posedge if driven combinationally — delaying WE_n ensures CE_n rises
+    // while WE_n is still low.
+    reg base_ram_we_n;
+    reg ext_ram_we_n;
+    always @(posedge clk) begin
+        base_ram_we_n <= ~(txn_is_write && cs_base);
+        ext_ram_we_n  <= ~(txn_is_write && cs_ext);
+    end
 
     always @(posedge clk) begin
         if (rst) begin
