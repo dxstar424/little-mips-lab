@@ -25,14 +25,14 @@ module MemCtrl(
     output wire [3:0]  base_ram_be_n,
     output wire        base_ram_ce_n,
     output wire        base_ram_oe_n,
-    output reg         base_ram_we_n,
+    output wire        base_ram_we_n,
 
     inout  wire [31:0] ext_ram_data,
     output wire [19:0] ext_ram_addr,
     output wire [3:0]  ext_ram_be_n,
     output wire        ext_ram_ce_n,
     output wire        ext_ram_oe_n,
-    output reg         ext_ram_we_n
+    output wire        ext_ram_we_n
 );
 
     // State machine: IDLE / READ / WRITE / WAIT
@@ -78,30 +78,18 @@ module MemCtrl(
     // - Next cycle, if another request exists, state machine re-enters READ/WRITE and asserts stall
     assign mem_stall = (state != S_IDLE);
 
-    // Data bus: drive during write + 1 extra cycle so DataIO stays valid
-    // through the posedge CE_n event (prevents write_data1_time reset race).
-    reg  drive_base_r;
-    reg  drive_ext_r;
-    always @(posedge clk) begin
-        if (rst) begin
-            drive_base_r <= 1'b0;
-            drive_ext_r  <= 1'b0;
-        end else begin
-            drive_base_r <= txn_is_write && cs_base;
-            drive_ext_r  <= txn_is_write && cs_ext;
-        end
-    end
-    assign base_ram_data = (drive_base_r || (txn_is_write && cs_base)) ? txn_wdata : 32'bz;
-    assign ext_ram_data  = (drive_ext_r  || (txn_is_write && cs_ext))  ? txn_wdata : 32'bz;
+    // RAM data bus tri-state control (driven only during write transactions)
+    wire drive_base = (state == S_WRITE) && (~txn_use_ext) && (~txn_is_uart);
+    wire drive_ext  = (state == S_WRITE) && ( txn_use_ext) && (~txn_is_uart);
+    assign base_ram_data = drive_base ? txn_wdata : 32'bz;
+    assign ext_ram_data  = drive_ext  ? txn_wdata : 32'bz;
 
     // RAM control signals (active low)
     wire cs_base = (~txn_use_ext) && (~txn_is_uart) && (state != S_IDLE);
     wire cs_ext  = ( txn_use_ext) && (~txn_is_uart) && (state != S_IDLE);
 
     assign base_ram_addr = txn_addr[21:2];
-    // ExtRAM uses a separate 20-bit address space (0–0xFFFFF).
-    // Subtract 0x100000 to map 0x80400000–0x807FFFFF → ExtRAM index 0.
-    assign ext_ram_addr  = txn_addr[21:2] - 21'h100000;
+    assign ext_ram_addr  = txn_addr[21:2];
 
     assign base_ram_be_n = cs_base ? txn_be_n : 4'b1111;
     assign ext_ram_be_n  = cs_ext  ? txn_be_n : 4'b1111;
@@ -112,22 +100,8 @@ module MemCtrl(
     // Hold OE low during reads (READ+WAIT), prevent bus from going Hi-Z between wait cycles
     assign base_ram_oe_n = ~((~txn_is_write) && cs_base);
     assign ext_ram_oe_n  = ~((~txn_is_write) && cs_ext);
-
-    // WE_n must be registered (one cycle behind CE_n). The SRAM behavioral
-    // model writes on posedge CE_n when WE_n==0. Both change on the same
-    // posedge if driven combinationally — delaying WE_n ensures CE_n rises
-    // while WE_n is still low.
-    reg base_ram_we_n;
-    reg ext_ram_we_n;
-    always @(posedge clk) begin
-        if (rst) begin
-            base_ram_we_n <= 1'b1;
-            ext_ram_we_n  <= 1'b1;
-        end else begin
-            base_ram_we_n <= ~(txn_is_write && cs_base);
-            ext_ram_we_n  <= ~(txn_is_write && cs_ext);
-        end
-    end
+    assign base_ram_we_n = ~((state == S_WRITE) && cs_base);
+    assign ext_ram_we_n  = ~((state == S_WRITE) && cs_ext);
 
     always @(posedge clk) begin
         if (rst) begin
