@@ -123,7 +123,14 @@ module Core(
             ifid0_pred_taken <= 1'b0;
             ifid0_pred_target<= 32'b0;
             ifid1_v          <= 1'b0;
-        end else if (~id_stall) begin
+        end else if (id_stall) begin
+            // Load-use stall: insert bubble so stall self-resolves.
+            // Unlike mem_stall (freeze), id_stall must clear IF/ID so the
+            // LW can leave EX and id_data_stall deasserts next cycle.
+            ifid0_v          <= 1'b0;
+            ifid1_v          <= 1'b0;
+        end else begin
+            // Normal advance: no stall, no mispredict
             ifid0_v          <= 1'b1;
             ifid0_pred_taken <= bp_taken;
             ifid0_pred_target<= bp_target;
@@ -325,9 +332,17 @@ module Core(
             idex0_issue2      <= idex0_issue2;
             idex1_v           <= idex1_v;
         end else if (bp_mispredict) begin
+            // Keep V bits alive — delay slot must execute.
             idex0_pred_taken  <= 1'b0;
             idex0_pred_target <= 32'b0;
-        end else if (~ex_stall & ~id_stall) begin
+        end else if (id_stall) begin
+            // Load-use stall: insert bubble so LW can leave EX.
+            // EX/MEM latches idex_v (old=1, LW) → LW enters MEM.
+            // Next cycle id_data_stall sees EX bubble → stall resolved.
+            idex0_v           <= 1'b0;
+            idex1_v           <= 1'b0;
+        end else if (~ex_stall) begin
+            // Normal advance (id_stall=0, no bp_mispredict)
             idex0_v           <= ifid0_v;
             idex0_pred_taken  <= ifid0_pred_taken;
             idex0_pred_target <= ifid0_pred_target;
