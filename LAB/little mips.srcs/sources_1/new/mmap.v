@@ -51,11 +51,17 @@ module mmap(
     assign base_ram_oe_n = ~((~txn_is_write) && cs_base);
     assign ext_ram_oe_n  = ~((~txn_is_write) && cs_ext);
 
-    assign base_ram_we_n = ~(in_write_phase && cs_base);
-    assign ext_ram_we_n  = ~(in_write_phase && cs_ext);
+    // WE_n must stay low through S_WRITE+S_WAIT so it is still 0 when
+    // CE_n rises at S_WAIT→IDLE.  The SRAM behavioural model writes at
+    // posedge CE_n while WE_n==0.  Using txn_is_write (not in_write_phase)
+    // keeps WE_n active for the entire transaction.
+    assign base_ram_we_n = ~(txn_is_write && cs_base);
+    assign ext_ram_we_n  = ~(txn_is_write && cs_ext);
 
-    wire drive_base = in_write_phase && cs_base;
-    wire drive_ext  = in_write_phase && cs_ext;
+    // Data bus must be driven through S_WRITE+S_WAIT so it is stable
+    // when CE_n rises.  Same reasoning: use txn_is_write, not in_write_phase.
+    wire drive_base = txn_is_write && cs_base;
+    wire drive_ext  = txn_is_write && cs_ext;
     assign base_ram_data = drive_base ? wdata : 32'bz;
     assign ext_ram_data  = drive_ext  ? wdata : 32'bz;
 
