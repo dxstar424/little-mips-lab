@@ -118,7 +118,6 @@ module iCache #(
     reg [1:0]  miss_index;
     reg        is_our_txn;
     reg [1:0]  stall_cnt;     // count mem_stall cycles for address-advance timing
-    reg        word_done;     // prevent double-latching the same fill word
     integer    rst_w, rst_s;
 
     // mem_stall edge detection
@@ -142,7 +141,6 @@ module iCache #(
             miss_index  <= 2'd0;
             is_our_txn  <= 1'b0;
             stall_cnt   <= 2'd0;
-            word_done   <= 1'b0;
 
             for (rst_w = 0; rst_w < WAYS; rst_w = rst_w + 1) begin
                 for (rst_s = 0; rst_s < SETS; rst_s = rst_s + 1) begin
@@ -161,7 +159,6 @@ module iCache #(
                     mem_inst_req <= 1'b0;
                     is_our_txn   <= 1'b0;
                     stall_cnt    <= 2'd0;
-                    word_done    <= 1'b0;
 
                     if (miss_detected) begin
                         state       <= S_MISS_FILL;
@@ -184,11 +181,11 @@ module iCache #(
                         is_our_txn <= 1'b1;
 
                     // ----- stall cycle counter -----
-                    // Reset on stall_rise (new MemCtrl transaction) and on
-                    // word completion, so each word's count starts from 0.
+                    // Reset on stall_rise (new MemCtrl transaction).
+                    // Count mem_stall cycles for address-advance timing.
                     if (stall_rise) begin
                         stall_cnt <= 2'd0;
-                    end else if (mem_stall && is_our_txn && !word_done) begin
+                    end else if (mem_stall && is_our_txn) begin
                         stall_cnt <= stall_cnt + 2'd1;
                     end
 
@@ -200,14 +197,12 @@ module iCache #(
                     end
 
                     // ----- data latch -----
-                    // SRAM_TIME=2:  READ (1) + WAIT(2) = 3 mem_stall cycles.
-                    // Data becomes valid when stall_cnt reaches 2 (cnt=0→READ,
-                    // 1→WAIT1, 2→WAIT2 = done), or on stall_fall as back-up
-                    // for the first word where timing may differ.
-                    if (!word_done && is_our_txn &&
-                        ((mem_stall && stall_cnt == 2'd2) || stall_fall)) begin
+                    // MemCtrl updates inst_data during S_WAIT→S_IDLE (NBA).
+                    // The iCache must latch on the NEXT cycle's stall_fall,
+                    // when mem_inst_data is guaranteed stable.
+                    if (stall_fall && is_our_txn) begin
                         data[repl_way][miss_index][fill_cnt] <= mem_inst_data;
-                        word_done   <= 1'b1;
+                        stall_cnt <= 2'd0;   // reset for next word
 
                         if (fill_cnt == BLOCK_WORDS - 1) begin
                             valid[repl_way][miss_index] <= 1'b1;
@@ -215,18 +210,9 @@ module iCache #(
                             state       <= S_IDLE;
                             mem_inst_req <= 1'b0;
                             is_our_txn  <= 1'b0;
-                            word_done   <= 1'b0;
                         end else begin
                             fill_cnt   <= fill_cnt + 2'd1;
                         end
-                    end
-
-                    // ----- next-word setup -----
-                    // After latching, wait for mem_stall to go low then high
-                    // again (rise of next transaction) before clearing word_done.
-                    if (word_done && stall_rise) begin
-                        word_done   <= 1'b0;
-                        stall_cnt   <= 2'd0;
                     end
                 end
 
