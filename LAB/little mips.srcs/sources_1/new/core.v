@@ -370,7 +370,11 @@ module Core(
             idex1_alu_type    <= 4'b0;
             idex1_rs_val      <= 32'b0;
             idex1_rt_val      <= 32'b0;
-        end else if (mem_stall | id_stall) begin
+        end else if (mem_stall | id_stall | bp_mispredict) begin
+            // Hold during stall, load-use, and branch mispredict.
+            // bp_mispredict: ID/EX V bits stay valid (delay slot must execute),
+            // but IF/ID is flushed.  We must hold the branch's EX operands
+            // instead of latching wrong-path data from the flushed IF/ID.
             idex0_pc          <= idex0_pc;
             idex0_rs          <= idex0_rs;
             idex0_rt          <= idex0_rt;
