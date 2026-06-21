@@ -201,6 +201,12 @@ module MemCtrl(
                             end else begin
                                 if (txn_is_inst)
                                     inst_data <= sram_rdata;
+                                // Write-buffer forwarding: if a buffered write targets
+                                // the same address as this read, forward the buffered
+                                // data.  Without this, SW→LW to the same address reads
+                                // stale SRAM data because the write hasn't drained yet.
+                                else if (buf_valid && (buf_addr == txn_addr))
+                                    data_rdata <= buf_wdata;
                                 else
                                     data_rdata <= sram_rdata;
                             end
