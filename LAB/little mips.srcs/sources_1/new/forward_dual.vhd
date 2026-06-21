@@ -126,46 +126,56 @@ begin
             ex1_v, ex1_rd, ex1_reg_w, ex1_alu_out, ex1_datatoreg,
             mem0_v, mem0_rd, mem0_reg_w, mem0_alu_out, mem0_datatoreg, dmem0_rdata,
             mem1_v, mem1_rd, mem1_reg_w, mem1_alu_out, mem1_datatoreg, dmem1_rdata)
+        variable v_id0_rs_val_f, v_id0_rt_val_f : std_logic_vector(31 downto 0);
+        variable v_id1_rs_val_f, v_id1_rt_val_f : std_logic_vector(31 downto 0);
+        variable v_id0_stall, v_id1_stall : std_logic;
     begin
         forward_rs(id0_rs, id0_rs_val, id0_use_rs,
             ex0_v, ex0_reg_w, ex0_rd, ex0_datatoreg, ex0_alu_out,
             ex1_v, ex1_reg_w, ex1_rd, ex1_datatoreg, ex1_alu_out,
             mem0_v, mem0_reg_w, mem0_rd, mem0_datatoreg, mem0_alu_out, dmem0_rdata,
             mem1_v, mem1_reg_w, mem1_rd, mem1_datatoreg, mem1_alu_out, dmem1_rdata,
-            id0_rs_val_f);
+            v_id0_rs_val_f);
         forward_rt(id0_rt, id0_rt_val, id0_use_rt,
             ex0_v, ex0_reg_w, ex0_rd, ex0_datatoreg, ex0_alu_out,
             ex1_v, ex1_reg_w, ex1_rd, ex1_datatoreg, ex1_alu_out,
             mem0_v, mem0_reg_w, mem0_rd, mem0_datatoreg, mem0_alu_out, dmem0_rdata,
             mem1_v, mem1_reg_w, mem1_rd, mem1_datatoreg, mem1_alu_out, dmem1_rdata,
-            id0_rt_val_f);
+            v_id0_rt_val_f);
 
         forward_rs(id1_rs, id1_rs_val, id1_use_rs,
             ex0_v, ex0_reg_w, ex0_rd, ex0_datatoreg, ex0_alu_out,
             ex1_v, ex1_reg_w, ex1_rd, ex1_datatoreg, ex1_alu_out,
             mem0_v, mem0_reg_w, mem0_rd, mem0_datatoreg, mem0_alu_out, dmem0_rdata,
             mem1_v, mem1_reg_w, mem1_rd, mem1_datatoreg, mem1_alu_out, dmem1_rdata,
-            id1_rs_val_f);
+            v_id1_rs_val_f);
         forward_rt(id1_rt, id1_rt_val, id1_use_rt,
             ex0_v, ex0_reg_w, ex0_rd, ex0_datatoreg, ex0_alu_out,
             ex1_v, ex1_reg_w, ex1_rd, ex1_datatoreg, ex1_alu_out,
             mem0_v, mem0_reg_w, mem0_rd, mem0_datatoreg, mem0_alu_out, dmem0_rdata,
             mem1_v, mem1_reg_w, mem1_rd, mem1_datatoreg, mem1_alu_out, dmem1_rdata,
-            id1_rt_val_f);
+            v_id1_rt_val_f);
 
         -- ID0 checks both EX0 and EX1 for load-use hazards
         load_use(id0_rs, id0_rt, id0_use_rs, id0_use_rt, id0_v,
-                 ex0_v, ex0_datatoreg, ex0_rd, id0_data_stall);
-        if (id0_data_stall = '0') then
+                 ex0_v, ex0_datatoreg, ex0_rd, v_id0_stall);
+        if (v_id0_stall = '0') then
             load_use(id0_rs, id0_rt, id0_use_rs, id0_use_rt, id0_v,
-                     ex1_v, ex1_datatoreg, ex1_rd, id0_data_stall);
+                     ex1_v, ex1_datatoreg, ex1_rd, v_id0_stall);
         end if;
         -- ID1 checks both EX0 and EX1 for load-use hazards
         load_use(id1_rs, id1_rt, id1_use_rs, id1_use_rt, id1_v,
-                 ex0_v, ex0_datatoreg, ex0_rd, id1_data_stall);
-        if (id1_data_stall = '0') then
+                 ex0_v, ex0_datatoreg, ex0_rd, v_id1_stall);
+        if (v_id1_stall = '0') then
             load_use(id1_rs, id1_rt, id1_use_rs, id1_use_rt, id1_v,
-                     ex1_v, ex1_datatoreg, ex1_rd, id1_data_stall);
+                     ex1_v, ex1_datatoreg, ex1_rd, v_id1_stall);
         end if;
+
+        id0_rs_val_f <= v_id0_rs_val_f;
+        id0_rt_val_f <= v_id0_rt_val_f;
+        id1_rs_val_f <= v_id1_rs_val_f;
+        id1_rt_val_f <= v_id1_rt_val_f;
+        id0_data_stall <= v_id0_stall;
+        id1_data_stall <= v_id1_stall;
     end process;
 end Behavioral;

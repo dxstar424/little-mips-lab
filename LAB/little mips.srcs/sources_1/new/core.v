@@ -442,9 +442,9 @@ module Core(
     // ================================================================
     // Register file (4R / 2W) + dual forwarding
     // ================================================================
-    wire [4:0]  wb0_rd, wb1_rd;
-    wire [31:0] wb0_wdata, wb1_wdata;
-    wire        wb0_wen, wb1_wen;
+    reg [4:0]  wb0_rd, wb1_rd;
+    reg [31:0] wb0_wdata, wb1_wdata;
+    reg         wb0_wen, wb1_wen;
 
     regfile rf (
         .clk(clk), .rst(rst),
