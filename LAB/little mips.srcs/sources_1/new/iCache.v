@@ -12,8 +12,10 @@ module iCache #(
     // ---- Core side ----
     input  wire [31:0] core_pc,
     input  wire        core_inst_req,
-    output wire [31:0] core_inst,
-    output wire        core_stall,      // combinational: asserted immediately on miss so Core never latches bad inst
+    output wire [31:0] core_inst,       // instruction at core_pc
+    output wire [31:0] core_inst_p4,    // instruction at core_pc+4 (Lab5 dual-fetch)
+    output wire        core_dual_ok,    // both words hit in cache
+    output wire        core_stall,      // combinational: asserted immediately on miss
 
     // ---- MemCtrl side ----
     output reg         mem_inst_req,
@@ -40,6 +42,11 @@ module iCache #(
     wire [25:0] id_tag   = core_pc[31:6];
     wire [1:0]  id_word  = core_pc[3:2];
 
+    wire [31:0] pc_p4    = core_pc + 32'd4;
+    wire [1:0]  id_index_p4 = pc_p4[5:4];
+    wire [25:0] id_tag_p4   = pc_p4[31:6];
+    wire [1:0]  id_word_p4  = pc_p4[3:2];
+
     // ============================================================
     // Hit detection (combinational, 4-way parallel compare)
     // ============================================================
@@ -52,6 +59,24 @@ module iCache #(
     endgenerate
 
     wire cache_hit = |way_hit;
+
+    // ---- Hit detection for PC+4 (Lab5) ----
+    wire [WAYS-1:0] way_hit_p4;
+    generate
+        for (w = 0; w < WAYS; w = w + 1) begin : hit_p4_gen
+            assign way_hit_p4[w] = valid[w][id_index_p4] && (tag[w][id_index_p4] == id_tag_p4);
+        end
+    endgenerate
+    wire cache_hit_p4 = |way_hit_p4;
+
+    reg [1:0] hit_way_p4;
+    integer hwp;
+    always @(*) begin
+        hit_way_p4 = 2'd0;
+        for (hwp = 0; hwp < WAYS; hwp = hwp + 1) begin
+            if (way_hit_p4[hwp]) hit_way_p4 = hwp[1:0];
+        end
+    end
 
     // ============================================================
     // Hit way selection (priority encoder)
@@ -69,13 +94,14 @@ module iCache #(
     // Data output (combinational)
     // ============================================================
     assign core_inst = cache_hit ? data[hit_way][id_index][id_word] : 32'b0;
+    assign core_inst_p4 = cache_hit_p4 ? data[hit_way_p4][id_index_p4][id_word_p4] : 32'b0;
+    assign core_dual_ok = cache_hit & cache_hit_p4;
 
     // ============================================================
     // core_stall: combinational, asserted immediately on miss.
     // Stable before Core samples inst on the clock edge, so Core
     // never latches a bogus instruction.
     // ============================================================
-    wire miss_detected;
     assign miss_detected = core_inst_req && !cache_hit;
     assign core_stall = (state == S_MISS_FILL) || ((state == S_IDLE) && miss_detected);
 

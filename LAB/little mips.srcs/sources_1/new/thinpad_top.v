@@ -59,7 +59,9 @@ module thinpad_top(
     assign clk = clk_50M;
     assign rst = reset_btn;
     wire [31:0] pc;
-    wire [31:0]inst;
+    wire [31:0] inst;
+    wire [31:0] inst_p4;
+    wire        icache_dual_ok;
     wire inst_req;
     wire data_req;
     wire data_we;
@@ -85,6 +87,8 @@ module thinpad_top(
     .rst(rst),
     .pc_o(pc),
     .inst(inst),
+    .inst_p4(inst_p4),
+    .icache_dual_ok(icache_dual_ok),
     .inst_req(inst_req),
     .data_req(data_req),
     .data_we(data_we),
@@ -113,6 +117,8 @@ module thinpad_top(
         .core_pc(pc),
         .core_inst_req(inst_req),
         .core_inst(inst),
+        .core_inst_p4(inst_p4),
+        .core_dual_ok(icache_dual_ok),
         .core_stall(icache_stall),
         .mem_inst_req(icache_inst_req),
         .mem_inst_addr(icache_inst_addr),
@@ -130,7 +136,7 @@ module thinpad_top(
         .inst_req(icache_inst_req),
         .inst_addr(icache_inst_addr),
         .inst_data(icache_rdata),
-        .data_req(data_req)
+        .data_req(data_req),
         .data_we(data_we),
         .data_be(be),
         .data_addr(dmem_addr),
