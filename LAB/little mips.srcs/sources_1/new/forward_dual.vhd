@@ -60,14 +60,15 @@ architecture Behavioral of forward_dual is
     begin
         id_rs_val_f := id_rs_val;
         if (id_use_rs = '1' and id_rs /= "00000") then
-            if (ex0_v = '1' and ex0_reg_w = '1' and ex0_rd = id_rs and ex0_datatoreg = '0') then
-                id_rs_val_f := ex0_alu_out;
-            elsif (ex1_v = '1' and ex1_reg_w = '1' and ex1_rd = id_rs and ex1_datatoreg = '0') then
+            -- Younger-first priority: EX1 > EX0, MEM1 > MEM0 (slot1 younger than slot0)
+            if (ex1_v = '1' and ex1_reg_w = '1' and ex1_rd = id_rs and ex1_datatoreg = '0') then
                 id_rs_val_f := ex1_alu_out;
-            elsif (mem0_v = '1' and mem0_reg_w = '1' and mem0_rd = id_rs) then
-                if (mem0_datatoreg = '1') then id_rs_val_f := dmem0_rdata; else id_rs_val_f := mem0_alu_out; end if;
+            elsif (ex0_v = '1' and ex0_reg_w = '1' and ex0_rd = id_rs and ex0_datatoreg = '0') then
+                id_rs_val_f := ex0_alu_out;
             elsif (mem1_v = '1' and mem1_reg_w = '1' and mem1_rd = id_rs) then
                 if (mem1_datatoreg = '1') then id_rs_val_f := dmem1_rdata; else id_rs_val_f := mem1_alu_out; end if;
+            elsif (mem0_v = '1' and mem0_reg_w = '1' and mem0_rd = id_rs) then
+                if (mem0_datatoreg = '1') then id_rs_val_f := dmem0_rdata; else id_rs_val_f := mem0_alu_out; end if;
             end if;
         end if;
     end procedure;
@@ -89,14 +90,15 @@ architecture Behavioral of forward_dual is
     begin
         id_rt_val_f := id_rt_val;
         if (id_use_rt = '1' and id_rt /= "00000") then
-            if (ex0_v = '1' and ex0_reg_w = '1' and ex0_rd = id_rt and ex0_datatoreg = '0') then
-                id_rt_val_f := ex0_alu_out;
-            elsif (ex1_v = '1' and ex1_reg_w = '1' and ex1_rd = id_rt and ex1_datatoreg = '0') then
+            -- Younger-first priority: EX1 > EX0, MEM1 > MEM0 (slot1 younger than slot0)
+            if (ex1_v = '1' and ex1_reg_w = '1' and ex1_rd = id_rt and ex1_datatoreg = '0') then
                 id_rt_val_f := ex1_alu_out;
-            elsif (mem0_v = '1' and mem0_reg_w = '1' and mem0_rd = id_rt) then
-                if (mem0_datatoreg = '1') then id_rt_val_f := dmem0_rdata; else id_rt_val_f := mem0_alu_out; end if;
+            elsif (ex0_v = '1' and ex0_reg_w = '1' and ex0_rd = id_rt and ex0_datatoreg = '0') then
+                id_rt_val_f := ex0_alu_out;
             elsif (mem1_v = '1' and mem1_reg_w = '1' and mem1_rd = id_rt) then
                 if (mem1_datatoreg = '1') then id_rt_val_f := dmem1_rdata; else id_rt_val_f := mem1_alu_out; end if;
+            elsif (mem0_v = '1' and mem0_reg_w = '1' and mem0_rd = id_rt) then
+                if (mem0_datatoreg = '1') then id_rt_val_f := dmem0_rdata; else id_rt_val_f := mem0_alu_out; end if;
             end if;
         end if;
     end procedure;
@@ -151,8 +153,14 @@ begin
             mem1_v, mem1_reg_w, mem1_rd, mem1_datatoreg, mem1_alu_out, dmem1_rdata,
             id1_rt_val_f);
 
+        -- ID0 checks both EX0 and EX1 for load-use hazards
         load_use(id0_rs, id0_rt, id0_use_rs, id0_use_rt, id0_v,
                  ex0_v, ex0_datatoreg, ex0_rd, id0_data_stall);
+        if (id0_data_stall = '0') then
+            load_use(id0_rs, id0_rt, id0_use_rs, id0_use_rt, id0_v,
+                     ex1_v, ex1_datatoreg, ex1_rd, id0_data_stall);
+        end if;
+        -- ID1 checks both EX0 and EX1 for load-use hazards
         load_use(id1_rs, id1_rt, id1_use_rs, id1_use_rt, id1_v,
                  ex0_v, ex0_datatoreg, ex0_rd, id1_data_stall);
         if (id1_data_stall = '0') then
