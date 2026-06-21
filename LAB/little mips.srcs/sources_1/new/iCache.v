@@ -98,18 +98,17 @@ module iCache #(
     assign core_dual_ok = cache_hit & cache_hit_p4;
 
     // ============================================================
-    // core_stall: combinational, asserted immediately on miss.
-    // Stable before Core samples inst on the clock edge, so Core
-    // never latches a bogus instruction.
-    // ============================================================
-    assign miss_detected = core_inst_req && !cache_hit;
-    assign core_stall = (state == S_MISS_FILL) || ((state == S_IDLE) && miss_detected);
-
-    // ============================================================
-    // State machine
+    // State machine localparams (declared before use for combinational logic)
     // ============================================================
     localparam S_IDLE      = 1'b0;
     localparam S_MISS_FILL = 1'b1;
+
+    // ============================================================
+    // core_stall: combinational, asserted immediately on miss.
+    // ============================================================
+    wire miss_detected;
+    assign miss_detected = core_inst_req && !cache_hit;
+    assign core_stall = (state == S_MISS_FILL) || ((state == S_IDLE) && miss_detected);
 
     reg        state;
     reg [1:0]  fill_cnt;

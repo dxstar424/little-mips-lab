@@ -1,4 +1,5 @@
 `default_nettype none
+`include "headder.vh"
 
 module thinpad_top(
     input wire clk_50M,           // 50MHz clock input
