@@ -74,6 +74,8 @@ begin
             if (ex_v = '1' and ex_reg_w = '1' and ex_rd = id_rt) then
                 if (ex_datatoreg = '0') then
                     id_rt_val_f <= ex_alu_out;
+                else
+                    null;
                 end if;
             elsif (mem_v = '1' and mem_reg_w = '1' and mem_rd = id_rt) then
                 if (mem_datatoreg = '1') then

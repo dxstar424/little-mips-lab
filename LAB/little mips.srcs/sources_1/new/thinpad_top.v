@@ -1,4 +1,5 @@
 `default_nettype none
+`include "headder.vh"
 
 module thinpad_top(
     input wire clk_50M,           // 50MHz clock input
@@ -59,7 +60,9 @@ module thinpad_top(
     assign clk = clk_50M;
     assign rst = reset_btn;
     wire [31:0] pc;
-    wire [31:0]inst;
+    wire [31:0] inst;
+    wire [31:0] inst_p4;
+    wire        icache_dual_ok;
     wire inst_req;
     wire data_req;
     wire data_we;
@@ -78,6 +81,12 @@ module thinpad_top(
     wire [31:0] icache_inst_addr;
     wire        total_mem_stall;
 
+    // masked_data_req: suppress data_req during iCache fill to prevent deadlock.
+    // Without this, a LW/SW frozen in MEM keeps data_req=1, MemCtrl keeps
+    // servicing it, and iCache fill can never acquire the bus.
+    wire        masked_data_req;
+    assign masked_data_req = data_req & ~icache_stall;
+
     assign total_mem_stall = mem_stall | icache_stall;
 
     Core core(
@@ -85,6 +94,8 @@ module thinpad_top(
     .rst(rst),
     .pc_o(pc),
     .inst(inst),
+    .inst_p4(inst_p4),
+    .icache_dual_ok(icache_dual_ok),
     .inst_req(inst_req),
     .data_req(data_req),
     .data_we(data_we),
@@ -113,12 +124,14 @@ module thinpad_top(
         .core_pc(pc),
         .core_inst_req(inst_req),
         .core_inst(inst),
+        .core_inst_p4(inst_p4),
+        .core_dual_ok(icache_dual_ok),
         .core_stall(icache_stall),
         .mem_inst_req(icache_inst_req),
         .mem_inst_addr(icache_inst_addr),
         .mem_inst_data(icache_rdata),
         .mem_stall(mem_stall),
-        .data_req(data_req)
+        .data_req(masked_data_req)
     );
 
     // =========================================================
@@ -130,7 +143,7 @@ module thinpad_top(
         .inst_req(icache_inst_req),
         .inst_addr(icache_inst_addr),
         .inst_data(icache_rdata),
-        .data_req(data_req)
+        .data_req(masked_data_req),
         .data_we(data_we),
         .data_be(be),
         .data_addr(dmem_addr),

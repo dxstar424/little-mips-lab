@@ -12,8 +12,10 @@ module iCache #(
     // ---- Core side ----
     input  wire [31:0] core_pc,
     input  wire        core_inst_req,
-    output wire [31:0] core_inst,
-    output wire        core_stall,      // combinational: asserted immediately on miss so Core never latches bad inst
+    output wire [31:0] core_inst,       // instruction at core_pc
+    output wire [31:0] core_inst_p4,    // instruction at core_pc+4 (Lab5 dual-fetch)
+    output wire        core_dual_ok,    // both words hit in cache
+    output wire        core_stall,      // combinational: asserted immediately on miss
 
     // ---- MemCtrl side ----
     output reg         mem_inst_req,
@@ -40,6 +42,11 @@ module iCache #(
     wire [25:0] id_tag   = core_pc[31:6];
     wire [1:0]  id_word  = core_pc[3:2];
 
+    wire [31:0] pc_p4    = core_pc + 32'd4;
+    wire [1:0]  id_index_p4 = pc_p4[5:4];
+    wire [25:0] id_tag_p4   = pc_p4[31:6];
+    wire [1:0]  id_word_p4  = pc_p4[3:2];
+
     // ============================================================
     // Hit detection (combinational, 4-way parallel compare)
     // ============================================================
@@ -52,6 +59,24 @@ module iCache #(
     endgenerate
 
     wire cache_hit = |way_hit;
+
+    // ---- Hit detection for PC+4 (Lab5) ----
+    wire [WAYS-1:0] way_hit_p4;
+    generate
+        for (w = 0; w < WAYS; w = w + 1) begin : hit_p4_gen
+            assign way_hit_p4[w] = valid[w][id_index_p4] && (tag[w][id_index_p4] == id_tag_p4);
+        end
+    endgenerate
+    wire cache_hit_p4 = |way_hit_p4;
+
+    reg [1:0] hit_way_p4;
+    integer hwp;
+    always @(*) begin
+        hit_way_p4 = 2'd0;
+        for (hwp = 0; hwp < WAYS; hwp = hwp + 1) begin
+            if (way_hit_p4[hwp]) hit_way_p4 = hwp[1:0];
+        end
+    end
 
     // ============================================================
     // Hit way selection (priority encoder)
@@ -69,21 +94,21 @@ module iCache #(
     // Data output (combinational)
     // ============================================================
     assign core_inst = cache_hit ? data[hit_way][id_index][id_word] : 32'b0;
+    assign core_inst_p4 = cache_hit_p4 ? data[hit_way_p4][id_index_p4][id_word_p4] : 32'b0;
+    assign core_dual_ok = cache_hit & cache_hit_p4;
+
+    // ============================================================
+    // State machine localparams (declared before use for combinational logic)
+    // ============================================================
+    localparam S_IDLE      = 1'b0;
+    localparam S_MISS_FILL = 1'b1;
 
     // ============================================================
     // core_stall: combinational, asserted immediately on miss.
-    // Stable before Core samples inst on the clock edge, so Core
-    // never latches a bogus instruction.
     // ============================================================
     wire miss_detected;
     assign miss_detected = core_inst_req && !cache_hit;
     assign core_stall = (state == S_MISS_FILL) || ((state == S_IDLE) && miss_detected);
-
-    // ============================================================
-    // State machine
-    // ============================================================
-    localparam S_IDLE      = 1'b0;
-    localparam S_MISS_FILL = 1'b1;
 
     reg        state;
     reg [1:0]  fill_cnt;
@@ -149,35 +174,44 @@ module iCache #(
                 end
 
                 S_MISS_FILL: begin
-                    // Detect ownership of each mem_stall burst.
+                    // ----- transaction ownership -----
+                    // masked_data_req guarantees data_req==0 during fill,
+                    // so every mem_stall burst belongs to us.
+                    if (!is_our_txn)
+                        is_our_txn <= 1'b1;
+
+                    // ----- stall cycle counter -----
+                    // Reset on stall_rise (new MemCtrl transaction).
+                    // Count mem_stall cycles for address-advance timing.
                     if (stall_rise) begin
-                        is_our_txn <= !data_req;
-                        if (!data_req) stall_cnt <= 2'd0;
+                        stall_cnt <= 2'd0;
                     end else if (mem_stall && is_our_txn) begin
                         stall_cnt <= stall_cnt + 2'd1;
                     end
 
-                    // Advance address one cycle before stall_fall.
-                    // MemCtrl: READ(1) + WAIT(SRAM=2) = 3 stall cycles.
-                    // stall_cnt=0 at stall_rise, reaches 1 at the WAIT(cn=1)
-                    // cycle. Advancing here means the new address is stable
-                    // before MemCtrl samples it on the next IDLE→READ.
+                    // ----- address advance (one cycle before data) -----
+                    // Advance at cnt==1 so the new address is stable when
+                    // MemCtrl starts the next S_READ.
                     if (mem_stall && is_our_txn && stall_cnt == 2'd1) begin
                         mem_inst_addr <= block_base + ((fill_cnt + 2'd1) << 2);
                     end
 
-                    // mem_stall falling edge: our transaction completed, data valid.
+                    // ----- data latch -----
+                    // MemCtrl updates inst_data during S_WAIT→S_IDLE (NBA).
+                    // The iCache must latch on the NEXT cycle's stall_fall,
+                    // when mem_inst_data is guaranteed stable.
                     if (stall_fall && is_our_txn) begin
                         data[repl_way][miss_index][fill_cnt] <= mem_inst_data;
+                        stall_cnt <= 2'd0;   // reset for next word
 
                         if (fill_cnt == BLOCK_WORDS - 1) begin
-                            // Last word: install tag, return to IDLE
                             valid[repl_way][miss_index] <= 1'b1;
                             tag[repl_way][miss_index]   <= miss_tag;
                             state       <= S_IDLE;
                             mem_inst_req <= 1'b0;
+                            is_our_txn  <= 1'b0;
                         end else begin
-                            fill_cnt <= fill_cnt + 2'd1;
+                            fill_cnt   <= fill_cnt + 2'd1;
                         end
                     end
                 end
